@@ -22,5 +22,36 @@ find_package(GMP 5.0.5)
 include_directories(${GMP_INCLUDE_DIR})
 set(EXTRA_LIBS ${EXTRA_LIBS} ${GMP_LIBRARIES})
 
+# isnan
+include(${CMAKE_MODULE_PATH}/CheckIsNaN.cmake)
+if(NOT ISNAN_VARIATION)
+  message(STATUS "Could not find working isnan.")
+endif(NOT ISNAN_VARIATION)
+enable_language(CXX)
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/isnan.h.in
+  "\@ISNAN_HEADERS\@\n"
+  "#include <type_traits>\n"
+  "template<class T>\n"
+  "typename std::enable_if<std::is_arithmetic<T>::value, bool> :: type \n"
+  "check_nan(T const &_in) { return \@ISNAN_VARIATION\@(_in); }\n"
+  )
+configure_file(${CMAKE_CURRENT_BINARY_DIR}/isnan.h.in ${CMAKE_CURRENT_BINARY_DIR}/isnan.h)
+
+# isinf
+include(${CMAKE_MODULE_PATH}/CheckIsInf.cmake)
+if(NOT ISINF_VARIATION)
+  message(STATUS "Could not find working isinf.")
+endif(NOT ISINF_VARIATION)
+enable_language(CXX)
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/isinf.h.in
+  "\@ISINF_HEADERS\@\n"
+  "#include <type_traits>\n"
+  "template<class T>\n"
+  "typename std::enable_if<std::is_arithmetic<T>::value, bool> :: type \n"
+  "check_inf(T const &_in) { return \@ISINF_VARIATION\@(_in); }\n"
+  )
+configure_file(${CMAKE_CURRENT_BINARY_DIR}/isinf.h.in ${CMAKE_CURRENT_BINARY_DIR}/isinf.h)
+
+include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 add_executable(fp_bugs_test fp_bugs_test.cpp)
 target_link_libraries(fp_bugs_test ${EXTRA_LIBS} -static-libgcc -static-libstdc++)

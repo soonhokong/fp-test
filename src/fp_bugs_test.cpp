@@ -9,14 +9,14 @@
 #include <utility>
 #include <vector>
 #include <mpfr.h>
+#include "isnan.h"
+#include "isinf.h"
 
 using std::cerr;
 using std::cout;
 using std::endl;
 using std::function;
 using std::get;
-using std::isinf;
-using std::isnan;
 using std::make_pair;
 using std::make_tuple;
 using std::ostream;
