@@ -27,29 +27,39 @@ using std::string;
 using std::tuple;
 using std::vector;
 
-template<typename F, typename MF>
-pair<double, double> compute(double const x, F std_f, MF mpfr_f, tuple<string, int, mpfr_rnd_t> const & rnd) {
+class C {
+public:
+    C(unsigned p = 256) {
+        mpfr_init2(mpfr_tmp, p);
+    }
+    ~C() {
+        mpfr_clear(mpfr_tmp);
+    }
+    template<typename F, typename MF>
+    pair<double, double> compute(double const x, F std_f, MF mpfr_f, tuple<string, int, mpfr_rnd_t> const & rnd) {
+        double std_result, mpfr_result;
+        int fe_rnd = get<1>(rnd);
+        mpfr_rnd_t mpfr_rnd = get<2>(rnd);
+        int fe_old_rnd = fegetround();
+        fesetround(fe_rnd);
+        std_result = std_f(x);
+        fesetround(fe_old_rnd);
+        mpfr_set_d(mpfr_tmp, x, mpfr_rnd);
+        mpfr_f(mpfr_tmp, mpfr_tmp, mpfr_rnd);
+        mpfr_result = mpfr_get_d(mpfr_tmp, mpfr_rnd);
+        return make_pair(std_result, mpfr_result);
+    }
+private:
     mpfr_t mpfr_tmp;
-    mpfr_init2(mpfr_tmp, 256);
-    double std_result, mpfr_result;
-    int fe_rnd = get<1>(rnd);
-    mpfr_rnd_t mpfr_rnd = get<2>(rnd);
-    int fe_old_rnd = fegetround();
-    fesetround(fe_rnd);
-    std_result = std_f(x);
-    fesetround(fe_old_rnd);
-    mpfr_set_d(mpfr_tmp, x, mpfr_rnd);
-    mpfr_f(mpfr_tmp, mpfr_tmp, mpfr_rnd);
-    mpfr_result = mpfr_get_d(mpfr_tmp, mpfr_rnd);
-    return make_pair(std_result, mpfr_result);
-}
+};
+
 
 double fRand(double const fMin, double const fMax) {
     double f = (double)rand() / RAND_MAX;
     return fMin + f * (fMax - fMin);
 }
 
-ostream & display(ostream & out, string const f, double const x, double const r1, double const r2, string const rnd) {
+ostream & display_instance(ostream & out, string const f, double const x, double const r1, double const r2, string const rnd) {
     out << f << "(" << setprecision(15) << x << ") = " << setprecision(15) << r1 << "\t" << rnd << endl;
     out << setw(25) << " = " << setprecision(15) << r2 << endl;
     return out;
@@ -71,8 +81,31 @@ ostream & display_stat_row(ostream & out, tuple<string, string, unsigned, unsign
     return out;
 }
 
+void ReplaceStringInPlace(std::string& subject, const std::string& search,
+                          const std::string& replace) {
+    size_t pos = 0;
+    while ((pos = subject.find(search, pos)) != std::string::npos) {
+         subject.replace(pos, search.length(), replace);
+         pos += replace.length();
+    }
+}
+
+ostream & display_stat_row_latex(ostream & out, tuple<string, string, unsigned, unsigned, unsigned, unsigned> row) {
+    unsigned total = get<2>(row) + get<3>(row) + get<4>(row) + get<5>(row);
+    string func = get<0>(row);
+    string rnd = get<1>(row);
+    ReplaceStringInPlace(func, "_", "\\_");
+    ReplaceStringInPlace(rnd,  "_", "\\_");
+    out << setw(15) << func        << "&" << setw(15) << rnd         << "&"
+        << setw(15) << get<2>(row) << "&" << setw(15) << get<3>(row) << "&"
+        << setw(15) << get<4>(row) << "&" << setw(15) << get<5>(row) << "&"
+        << setw(15) << total       << "\\\\" << endl;
+    return out;
+}
+
 int main() {
     srand(time(NULL));
+    C helper(256);
     // Rounding Modes
     vector<tuple<string, int, mpfr_rnd_t>> rnds = {make_tuple("NEAREST",  FE_TONEAREST,  MPFR_RNDN),
                                                    make_tuple("UPWARD",   FE_UPWARD,     MPFR_RNDU),
@@ -106,13 +139,13 @@ int main() {
             unsigned imprecise = 0, nan = 0, inf = 0, unreasonable = 0;
             for (unsigned i = 0; i < max_iter; i++) {
                 x = fRand(get<3>(func), get<4>(func));
-                result = compute(x, get<1>(func), get<2>(func), rnd);
+                result = helper.compute(x, get<1>(func), get<2>(func), rnd);
                 std_result  = result.first;
                 mpfr_result = result.second;
 
                 eps = 1e15 * fabs(mpfr_result - std::nextafter(mpfr_result, DBL_MAX));
                 if (fabs(mpfr_result - std_result) > eps) {
-                    display(cerr, get<0>(func), x, std_result, mpfr_result, get<0>(rnd));
+                    // display_instance(cerr, get<0>(func), x, std_result, mpfr_result, get<0>(rnd));
                     if (check_nan(std_result)) { nan++; }
                     else if (check_inf(std_result)) { inf++; }
                     else if (std_result < get<5>(func) || get<6>(func) < std_result) { unreasonable++; }
@@ -129,6 +162,7 @@ int main() {
     }
     display_stat_header(cout);
     for (auto const & row : stat) {
+        // display_stat_row_latex(cout, row);
         display_stat_row(cout, row);
     }
     return 0;
