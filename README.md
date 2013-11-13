@@ -1,4 +1,4 @@
-''FP Test'' is a small C++11 program which tests elementary math
+``FP Test`` is a small C++11 program which tests elementary math
 functions in C standard library implementation.
 
 Requirements
@@ -8,6 +8,25 @@ Requirements
 - [CMake](http://www.cmake.org)
 - [GMP (GNU multiprecision library)](http://gmplib.org/)
 - [MPFR (GNU MPFR Library)](http://www.mpfr.org/)
+
+You may install the above requirements on a machine running Ubuntu 12.04 LTS by following the below instructions:
+
+~~~~~~~~~~~~
+sudo apt-get install libgmp-dev
+sudo apt-get install libmpfr-dev
+sudo add-apt-repository ppa:kalakris/cmake -y
+sudo apt-get install cmake
+
+sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+sudo update-alternatives --remove-all gcc
+sudo update-alternatives --remove-all g++
+sudo apt-get update
+sudo apt-get install g++-4.8 -y
+sudo apt-get upgrade -y && sudo apt-get dist-upgrade -y
+
+sudo ln -s /usr/bin/g++-4.8 /usr/bin/g++
+~~~~~~~~~~~~
+
 
 Build
 -----
