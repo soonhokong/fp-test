@@ -28,7 +28,7 @@ using std::tuple;
 using std::vector;
 
 template<typename F, typename MF>
-pair<double, double> compute(double x, F std_f, MF mpfr_f, tuple<string, int, mpfr_rnd_t> rnd) {
+pair<double, double> compute(double const x, F std_f, MF mpfr_f, tuple<string, int, mpfr_rnd_t> const & rnd) {
     mpfr_t mpfr_tmp;
     mpfr_init2(mpfr_tmp, 256);
     double std_result, mpfr_result;
@@ -44,14 +44,30 @@ pair<double, double> compute(double x, F std_f, MF mpfr_f, tuple<string, int, mp
     return make_pair(std_result, mpfr_result);
 }
 
-double fRand(double fMin, double fMax) {
+double fRand(double const fMin, double const fMax) {
     double f = (double)rand() / RAND_MAX;
     return fMin + f * (fMax - fMin);
 }
 
-ostream & display(ostream & out, string f, double x, double r1, double r2, string rnd) {
+ostream & display(ostream & out, string const f, double const x, double const r1, double const r2, string const rnd) {
     out << f << "(" << setprecision(15) << x << ") = " << setprecision(15) << r1 << "\t" << rnd << endl;
     out << setw(25) << " = " << setprecision(15) << r2 << endl;
+    return out;
+}
+
+ostream & display_stat_header(ostream & out) {
+    out << setw(15) << "Function"     << setw(15) << "Round" << setw(15) << "Imprecise"
+         << setw(15) << "Unreasonable" << setw(15) << "Infty" << setw(15) << "Nan"
+         << setw(15) << "Total"        << endl;
+    return out;
+}
+
+ostream & display_stat_row(ostream & out, tuple<string, string, unsigned, unsigned, unsigned, unsigned> row) {
+    unsigned total = get<2>(row) + get<3>(row) + get<4>(row) + get<5>(row);
+    out << setw(15) << get<0>(row) << setw(15) << get<1>(row)
+        << setw(15) << get<2>(row) << setw(15) << get<3>(row)
+        << setw(15) << get<4>(row) << setw(15) << get<5>(row)
+        << setw(15) << total       << endl;
     return out;
 }
 
@@ -82,12 +98,12 @@ int main() {
     double std_result, mpfr_result, eps, x;
     unsigned const max_iter = 100000;
     pair<double, double> result;
-    cout << setw(15) << "Function"     << setw(15) << "Round" << setw(15) << "Imprecise"
-         << setw(15) << "Unreasonable" << setw(15) << "Infty" << setw(15) << "Nan"
-         << setw(15) << "Total"        << endl;
+
+    vector<tuple<string, string, unsigned, unsigned, unsigned, unsigned>> stat;
+
     for (auto const & func : funcs) {
         for (auto const & rnd : rnds) {
-            unsigned int imprecise = 0, nan = 0, inf = 0, unreasonable = 0;
+            unsigned imprecise = 0, nan = 0, inf = 0, unreasonable = 0;
             for (unsigned i = 0; i < max_iter; i++) {
                 x = fRand(get<3>(func), get<4>(func));
                 result = compute(x, get<1>(func), get<2>(func), rnd);
@@ -96,21 +112,24 @@ int main() {
 
                 eps = 1e15 * fabs(mpfr_result - std::nextafter(mpfr_result, DBL_MAX));
                 if (fabs(mpfr_result - std_result) > eps) {
-                    imprecise++;
                     display(cerr, get<0>(func), x, std_result, mpfr_result, get<0>(rnd));
-                    if (isnan(std_result)) { nan++; }
-                    else if (isinf(std_result)) { inf++; }
+                    if (check_nan(std_result)) { nan++; }
+                    else if (check_inf(std_result)) { inf++; }
                     else if (std_result < get<5>(func) || get<6>(func) < std_result) { unreasonable++; }
+                    else {
+                        imprecise++;
+                    }
                 }
             }
-            unsigned int total = imprecise + unreasonable + inf + nan;
+            unsigned total = imprecise + unreasonable + inf + nan;
             if (total > 0) {
-                cout << setw(15) << get<0>(func) << setw(15) << get<0>(rnd)
-                     << setw(15) << imprecise    << setw(15) << unreasonable
-                     << setw(15) << inf          << setw(15) << nan
-                     << setw(15) << total        << endl;
+                stat.emplace_back(get<0>(func), get<0>(rnd), imprecise, unreasonable, inf, nan);
             }
         }
+    }
+    display_stat_header(cout);
+    for (auto const & row : stat) {
+        display_stat_row(cout, row);
     }
     return 0;
 }
