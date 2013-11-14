@@ -113,20 +113,20 @@ int main() {
                                                    make_tuple("TO_ZERO",  FE_TOWARDZERO, MPFR_RNDZ)};
     vector<tuple<string, function<double(double)>, function<int(mpfr_t, mpfr_t, mpfr_rnd_t)>,
                  double, double, double, double> > funcs =
-    //       FuncName    C_FUN  MPFR_FUN   DOM_L  DOM_U  RANGE_L    RANGE_U
-        {make_tuple("sin",   sin,   mpfr_sin,  -31.4, +31.4, -1.00,     +1.00),
-         make_tuple("cos",   cos,   mpfr_cos,  -31.4, +31.4, -1.00,     +1.00),
-         make_tuple("tan",   tan,   mpfr_tan,  -31.4, +31.4, -INFINITY, +INFINITY),
-         make_tuple("acos",  acos,  mpfr_acos, -1.00, +1.00, -INFINITY, +INFINITY),
-         make_tuple("asin",  asin,  mpfr_asin, -1.00, +1.00, -INFINITY, +INFINITY),
-         make_tuple("atan",  atan,  mpfr_atan, -1.00, +1.00, -INFINITY, +INFINITY),
-         make_tuple("cosh",  cosh,  mpfr_cosh, -31.4, +31.4, 1.0,       +INFINITY),
-         make_tuple("sinh",  sinh,  mpfr_sinh, -31.4, +31.4, -INFINITY, +INFINITY),
-         make_tuple("tanh",  tanh,  mpfr_tanh, -31.4, +31.4, -1.0,      +1.0),
-         make_tuple("exp",   exp,   mpfr_exp,  -31.4, +31.4, 0.0,       +INFINITY),
-         make_tuple("log",   log,   mpfr_log,   0.01, +31.4, -INFINITY, +INFINITY),
-         make_tuple("log10", log10, mpfr_log10, 0.01, +31.4, -INFINITY, +INFINITY),
-         make_tuple("sqrt",  sqrt,  mpfr_sqrt,  0.00, +31.4, 0,         +INFINITY),
+        //       FuncName    C_FUN  MPFR_FUN    DOM_L    DOM_U   RANGE_L   RANGE_U
+        {make_tuple("sin",   sin,   mpfr_sin,  -1e306, +1e306, -1.00,     +1.00),
+         make_tuple("cos",   cos,   mpfr_cos,  -1e306, +1e306, -1.00,     +1.00),
+         make_tuple("tan",   tan,   mpfr_tan,  -1e306, +1e306, -INFINITY, +INFINITY),
+         make_tuple("acos",  acos,  mpfr_acos, -1.00,  +1.00,  -INFINITY, +INFINITY),
+         make_tuple("asin",  asin,  mpfr_asin, -1.00,  +1.00,  -INFINITY, +INFINITY),
+         make_tuple("atan",  atan,  mpfr_atan, -1.00,  +1.00,  -INFINITY, +INFINITY),
+         make_tuple("cosh",  cosh,  mpfr_cosh, -500,   +500,    1.0,      +INFINITY),
+         make_tuple("sinh",  sinh,  mpfr_sinh, -500,   +500,   -INFINITY, +INFINITY),
+         make_tuple("tanh",  tanh,  mpfr_tanh, -20,    +20,    -1.0,      +1.0),
+         make_tuple("exp",   exp,   mpfr_exp,  -100,   +100,    0.0,      +INFINITY),
+         make_tuple("log",   log,   mpfr_log,  1e-306, +1e306, -INFINITY, +INFINITY),
+         make_tuple("log10", log10, mpfr_log10,1e-306, +1e306, -INFINITY, +INFINITY),
+         make_tuple("sqrt",  sqrt,  mpfr_sqrt,  0.00,  +1e306,  0.0,      +INFINITY),
         };
     double std_result, mpfr_result, eps, x;
     unsigned const max_iter = 100000;
