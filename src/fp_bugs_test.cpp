@@ -1,13 +1,17 @@
 #include <cmath>
 #include <cfloat>
+#include <cstring>
 #include <fenv.h>
 #include <functional>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <bitset>
+#include <ieee754.h>
 #include <mpfr.h>
 #include "isnan.h"
 #include "isinf.h"
@@ -26,6 +30,8 @@ using std::setw;
 using std::string;
 using std::tuple;
 using std::vector;
+using std::bitset;
+using std::stringstream;
 
 class C {
 public:
@@ -36,38 +42,109 @@ public:
         mpfr_clear(mpfr_tmp);
     }
     template<typename F, typename MF>
-    pair<double, double> compute(double const x, F std_f, MF mpfr_f, tuple<string, int, mpfr_rnd_t> const & rnd) {
-        double std_result, mpfr_result;
+    tuple<double, double, double> compute(double const x, F std_f, MF mpfr_f, tuple<string, int, mpfr_rnd_t> const & rnd) {
+        double std_result, mpfr_result, mpfr_result_rndn;
         int fe_rnd = get<1>(rnd);
         mpfr_rnd_t mpfr_rnd = get<2>(rnd);
         int fe_old_rnd = fegetround();
+        // std_result
         fesetround(fe_rnd);
         std_result = std_f(x);
         fesetround(fe_old_rnd);
-        mpfr_set_d(mpfr_tmp, x, mpfr_rnd);
+        // mpfr_result
+        mpfr_set_d(mpfr_tmp, x, MPFR_RNDN);
         mpfr_f(mpfr_tmp, mpfr_tmp, mpfr_rnd);
         mpfr_result = mpfr_get_d(mpfr_tmp, mpfr_rnd);
-        return make_pair(std_result, mpfr_result);
+        // mpfr_result_rndn
+        mpfr_set_d(mpfr_tmp, x, MPFR_RNDN);
+        mpfr_f(mpfr_tmp, mpfr_tmp, MPFR_RNDN);
+        mpfr_result_rndn = mpfr_get_d(mpfr_tmp, MPFR_RNDN);
+        return make_tuple(std_result, mpfr_result, mpfr_result_rndn);
     }
 private:
     mpfr_t mpfr_tmp;
 };
-
 
 double fRand(double const fMin, double const fMax) {
     double f = (double)rand() / RAND_MAX;
     return fMin + f * (fMax - fMin);
 }
 
-ostream & display_instance(ostream & out, string const f, double const x, double const r1, double const r2, string const rnd) {
-    out << f << "(" << setprecision(15) << x << ") = " << setprecision(15) << r1 << "\t" << rnd << endl;
-    out << setw(25) << " = " << setprecision(15) << r2 << endl;
+unsigned long fpmantissa(double number)
+{
+    ieee754_double x = {.d = number};
+    return ((unsigned long) x.ieee.mantissa0 << 32) + x.ieee.mantissa1;
+}
+
+int fpexponent(double number)
+{
+    ieee754_double x = {.d = number};
+    return x.ieee.exponent - 1023;
+}
+
+bool isConsistent(double const x, double const y, unsigned long const ulp) {
+    if (x == y)
+        return true;
+    if (check_nan(x) || check_nan(y))
+        return false;
+    if (check_inf(x) || check_inf(y))
+        return false;
+    if (x > 0 && y < 0)
+        return false;
+    if (x < 0 && y > 0)
+        return false;
+    if (fpexponent(x) != fpexponent(y)) {
+        return false;
+    }
+    bitset<52> x_m = fpmantissa(x);
+    bitset<52> y_m = fpmantissa(y);
+    if ((x_m ^ y_m).to_ulong() > ulp) {
+        return false;
+    }
+    return true;
+}
+
+string get_binary_rep(double x) {
+    stringstream ss;
+    if (check_nan(x)) {
+        return "nan";
+    } else if (check_inf(x)) {
+        return (x > 0) ? "+oo" : "-oo" ;
+    }
+    bool          s = (x >= 0);
+    unsigned long m = fpmantissa(x);
+    int           e = fpexponent(x);
+    if (s) {
+        ss << "+";
+    } else {
+        ss << "-";
+    }
+    ss << "1." << bitset<52>(m) << " x 2^" << e;
+    return ss.str();
+}
+
+string get_binary_diff(double const x, double const y) {
+    bitset<52> x_m = fpmantissa(x);
+    bitset<52> y_m = fpmantissa(y);
+    return (x_m ^ y_m).to_string();
+}
+
+ostream & display_instance(ostream & out, string const f, double const x,
+                           double const r1, double const r2, double const r3, string const rnd) {
+    out << f << "(" << setprecision(30) << x << ") = " << setprecision(30) << r1 << "\t" << rnd << endl;
+    out << setw(25) << " = " << setprecision(30) << r2 << "\t" << rnd << endl;
+//    out << setw(25) << " = " << setprecision(30) << r3 << "\t" << "RNDN" << endl;
+
+    out << "std  = "    << get_binary_rep(r1) << endl;
+    out << "mpfr = "    << get_binary_rep(r2) << endl;
+    out << "diff =    " << get_binary_diff(r1, r2) << endl;
+    out << endl;
     return out;
 }
 
 ostream & display_stat_header(ostream & out) {
-    out << setw(15) << "Function"     << setw(15) << "Round" << setw(15) << "Imprecise"
-         << setw(15) << "Unreasonable" << setw(15) << "Infty" << setw(15) << "Nan"
+    out << setw(15) << "Function"     << setw(15) << "Round" << setw(15) << "Inconsistent"
+         << setw(15) << "Incorrect" << setw(15) << "Infty" << setw(15) << "Nan"
          << setw(15) << "Total"        << endl;
     return out;
 }
@@ -103,14 +180,17 @@ ostream & display_stat_row_latex(ostream & out, tuple<string, string, unsigned, 
     return out;
 }
 
+
 int main() {
     srand(time(NULL));
     C helper(256);
+
     // Rounding Modes
-    vector<tuple<string, int, mpfr_rnd_t>> rnds = {make_tuple("NEAREST",  FE_TONEAREST,  MPFR_RNDN),
-                                                   make_tuple("UPWARD",   FE_UPWARD,     MPFR_RNDU),
-                                                   make_tuple("DOWNWARD", FE_DOWNWARD,   MPFR_RNDD),
-                                                   make_tuple("TO_ZERO",  FE_TOWARDZERO, MPFR_RNDZ)};
+    vector<tuple<string, int, mpfr_rnd_t>> rnds =
+        {make_tuple("NEAREST",  FE_TONEAREST,  MPFR_RNDN),
+         make_tuple("UPWARD",   FE_UPWARD,     MPFR_RNDU),
+         make_tuple("DOWNWARD", FE_DOWNWARD,   MPFR_RNDD),
+         make_tuple("TO_ZERO",  FE_TOWARDZERO, MPFR_RNDZ)};
     vector<tuple<string, function<double(double)>, function<int(mpfr_t, mpfr_t, mpfr_rnd_t)>,
                  double, double, double, double> > funcs =
         //       FuncName    C_FUN  MPFR_FUN    DOM_L    DOM_U   RANGE_L   RANGE_U
@@ -128,9 +208,11 @@ int main() {
          make_tuple("log10", log10, mpfr_log10,1e-306, +1e306, -INFINITY, +INFINITY),
          make_tuple("sqrt",  sqrt,  mpfr_sqrt,  0.00,  +1e306,  0.0,      +INFINITY),
         };
-    double std_result, mpfr_result, eps, x;
+    double std_result, mpfr_result, mpfr_result_rndn, /*eps,*/ x;
     unsigned const max_iter = 100000;
-    pair<double, double> result;
+    unsigned const ulp_threshold = 1 << 20;
+
+    tuple<double, double, double> result;
 
     vector<tuple<string, string, unsigned, unsigned, unsigned, unsigned>> stat;
 
@@ -140,18 +222,16 @@ int main() {
             for (unsigned i = 0; i < max_iter; i++) {
                 x = fRand(get<3>(func), get<4>(func));
                 result = helper.compute(x, get<1>(func), get<2>(func), rnd);
-                std_result  = result.first;
-                mpfr_result = result.second;
+                std_result       = get<0>(result);
+                mpfr_result      = get<1>(result);
+                mpfr_result_rndn = get<2>(result);
 
-                eps = 1e15 * fabs(mpfr_result - std::nextafter(mpfr_result, DBL_MAX));
-                if (fabs(mpfr_result - std_result) > eps) {
-                    // display_instance(cerr, get<0>(func), x, std_result, mpfr_result, get<0>(rnd));
+                if (!isConsistent(mpfr_result, std_result, ulp_threshold)) {
+                    display_instance(cerr, get<0>(func), x, std_result, mpfr_result, mpfr_result_rndn, get<0>(rnd));
                     if (check_nan(std_result)) { nan++; }
                     else if (check_inf(std_result)) { inf++; }
                     else if (std_result < get<5>(func) || get<6>(func) < std_result) { unreasonable++; }
-                    else {
-                        imprecise++;
-                    }
+                    else { imprecise++; }
                 }
             }
             unsigned total = imprecise + unreasonable + inf + nan;
