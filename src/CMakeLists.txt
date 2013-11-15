@@ -6,7 +6,7 @@ set(CMAKE_COLOR_MAKEFILE ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake_modules/")
 
 # Initialize CXXFLAGS.
-set(CMAKE_CXX_FLAGS                "-Wall -Wextra -std=c++11 -mfpmath=sse -msse -msse2")
+set(CMAKE_CXX_FLAGS                "-Wall -Wextra -std=c++11") # -mfpmath=sse -msse -msse2")
 set(CMAKE_CXX_FLAGS_DEBUG          "-g -DDEBUG -DTRACE")
 set(CMAKE_CXX_FLAGS_MINSIZEREL     "-Os -DNDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE        "-O3 -DNDEBUG")
@@ -52,7 +52,10 @@ file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/isinf.h.in
   )
 configure_file(${CMAKE_CURRENT_BINARY_DIR}/isinf.h.in ${CMAKE_CURRENT_BINARY_DIR}/isinf.h)
 
-#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--rpath=/home/soonhok/work/eglibc:/usr/lib/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/4.8 -Wl,--dynamic-linker=/home/soonhok/work/eglibc/lib/ld-linux-x86-64.so.2")
+if("${EGLIBCPATH}" MATCHES ".+")
+  message(STATUS "Use EGLIBC Installed at ${EGLIBCPATH}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--rpath=${EGLIBCPATH}:/usr/lib/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/4.8 -Wl,--dynamic-linker=${EGLIBCPATH}/lib/ld-linux-x86-64.so.2")
+endif()
 
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 add_executable(fp_bugs_test fp_bugs_test.cpp)
