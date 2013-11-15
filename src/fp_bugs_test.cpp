@@ -70,38 +70,16 @@ double fRand(double const fMin, double const fMax) {
     return fMin + f * (fMax - fMin);
 }
 
-unsigned long fpmantissa(double number)
+unsigned long fpmantissa(double const number)
 {
     ieee754_double x = {.d = number};
     return ((unsigned long) x.ieee.mantissa0 << 32) + x.ieee.mantissa1;
 }
 
-int fpexponent(double number)
+int fpexponent(double const number)
 {
     ieee754_double x = {.d = number};
     return x.ieee.exponent - 1023;
-}
-
-bool isConsistent(double const x, double const y, unsigned long const ulp) {
-    if (x == y)
-        return true;
-    if (check_nan(x) || check_nan(y))
-        return false;
-    if (check_inf(x) || check_inf(y))
-        return false;
-    if (x > 0 && y < 0)
-        return false;
-    if (x < 0 && y > 0)
-        return false;
-    if (fpexponent(x) != fpexponent(y)) {
-        return false;
-    }
-    bitset<52> x_m = fpmantissa(x);
-    bitset<52> y_m = fpmantissa(y);
-    if ((x_m ^ y_m).to_ulong() > ulp) {
-        return false;
-    }
-    return true;
 }
 
 string get_binary_rep(double x) {
@@ -129,8 +107,82 @@ string get_binary_diff(double const x, double const y) {
     return (x_m ^ y_m).to_string();
 }
 
+int fpcmp(double const x, double const y) {
+    if (x >= 0 && y < 0) {
+        return 1;
+    }
+    if (y >= 0 && x < 0) {
+        return -1;
+    }
+    int const x_e = fpexponent(x);
+    int const y_e = fpexponent(y);
+    unsigned long const x_m = fpmantissa(x);
+    unsigned long const y_m = fpmantissa(y);
+    int s = (x >= 0) ? +1 : -1;
+
+    if(x_e > y_e) {
+        return s * 1;
+    } else if (y_e > x_e) {
+        return s * -1;
+    } else if (x_m > y_m) {
+        return s * 1;
+    } else if (y_m > x_m) {
+        return s * -1;
+    }
+    return 0;
+}
+
+bool isConsistent(double const x, double const y, unsigned long const ulp) {
+    if (x == y)
+        return true;
+    if (check_nan(x) || check_nan(y))
+        return false;
+    if (check_inf(x) || check_inf(y))
+        return false;
+    if (x >= 0 && y < 0)
+        return false;
+    if (x <= 0 && y > 0)
+        return false;
+    int x_e = fpexponent(x);
+    int y_e = fpexponent(y);
+    int e_diff = abs(x_e - y_e);
+    if (e_diff > 3) {
+        return false;
+    }
+    unsigned long x_m = fpmantissa(x);
+    unsigned long y_m = fpmantissa(y);
+    if (x_e > y_e) {
+        x_m = x_m << e_diff;
+    } else {
+        y_m = y_m << e_diff;
+    }
+    if ((x_m > y_m + ulp) || (y_m > x_m + ulp)) {
+        return false;
+    }
+    return true;
+}
+
+bool isCorrectRnd(double const x, double const ref, int rnd) {
+    if (x >= 0.0 && ref < 0.0)
+        return false;
+    if (x <= 0.0 && ref > 0.0)
+        return false;
+
+    switch(rnd) {
+    case FE_TONEAREST:
+        return true;
+    case FE_UPWARD:
+        return fpcmp(x, ref) == 0;
+    case FE_DOWNWARD:
+        return fpcmp(x, ref) == 0;
+    case FE_TOWARDZERO:
+        return (x >= 0.0 && fpcmp(x, ref) <= 0.0) || (x <= 0.0 && fpcmp(x, ref) >= 0.0);
+    }
+    return false;
+}
+
 ostream & display_instance(ostream & out, string const f, double const x,
-                           double const r1, double const r2, double const r3, string const rnd) {
+                           double const r1, double const r2, double const , string const rnd) {
     out << f << "(" << setprecision(30) << x << ") = " << setprecision(30) << r1 << "\t" << rnd << endl;
     out << setw(25) << " = " << setprecision(30) << r2 << "\t" << rnd << endl;
 //    out << setw(25) << " = " << setprecision(30) << r3 << "\t" << "RNDN" << endl;
@@ -144,8 +196,8 @@ ostream & display_instance(ostream & out, string const f, double const x,
 
 ostream & display_stat_header(ostream & out) {
     out << setw(15) << "Function"     << setw(15) << "Round" << setw(15) << "Inconsistent"
-         << setw(15) << "Incorrect" << setw(15) << "Infty" << setw(15) << "Nan"
-         << setw(15) << "Total"        << endl;
+        << setw(15) << "Incorrect" << setw(15) << "Infty" << setw(15) << "Nan"
+        << setw(15) << "Total"        << endl;
     return out;
 }
 
@@ -162,8 +214,8 @@ void ReplaceStringInPlace(std::string& subject, const std::string& search,
                           const std::string& replace) {
     size_t pos = 0;
     while ((pos = subject.find(search, pos)) != std::string::npos) {
-         subject.replace(pos, search.length(), replace);
-         pos += replace.length();
+        subject.replace(pos, search.length(), replace);
+        pos += replace.length();
     }
 }
 
@@ -179,7 +231,6 @@ ostream & display_stat_row_latex(ostream & out, tuple<string, string, unsigned, 
         << setw(15) << total       << "\\\\" << endl;
     return out;
 }
-
 
 int main() {
     srand(time(NULL));
@@ -210,7 +261,7 @@ int main() {
         };
     double std_result, mpfr_result, mpfr_result_rndn, /*eps,*/ x;
     unsigned const max_iter = 100000;
-    unsigned const ulp_threshold = 1 << 20;
+    unsigned const ulp_threshold = 1;
 
     tuple<double, double, double> result;
 
@@ -218,7 +269,7 @@ int main() {
 
     for (auto const & func : funcs) {
         for (auto const & rnd : rnds) {
-            unsigned imprecise = 0, nan = 0, inf = 0, unreasonable = 0;
+            unsigned inconsistent = 0, nan = 0, inf = 0, incorrect = 0;
             for (unsigned i = 0; i < max_iter; i++) {
                 x = fRand(get<3>(func), get<4>(func));
                 result = helper.compute(x, get<1>(func), get<2>(func), rnd);
@@ -227,16 +278,20 @@ int main() {
                 mpfr_result_rndn = get<2>(result);
 
                 if (!isConsistent(mpfr_result, std_result, ulp_threshold)) {
-                    display_instance(cerr, get<0>(func), x, std_result, mpfr_result, mpfr_result_rndn, get<0>(rnd));
+//                    display_instance(cerr, get<0>(func), x, std_result, mpfr_result, mpfr_result_rndn, get<0>(rnd));
                     if (check_nan(std_result)) { nan++; }
                     else if (check_inf(std_result)) { inf++; }
-                    else if (std_result < get<5>(func) || get<6>(func) < std_result) { unreasonable++; }
-                    else { imprecise++; }
+                    else if (std_result < get<5>(func) || get<6>(func) < std_result) { incorrect++; }
+                    else { inconsistent++; }
+                    if (!isCorrectRnd(std_result, mpfr_result, get<1>(rnd))) {
+                        display_instance(cerr, get<0>(func), x, std_result, mpfr_result, mpfr_result_rndn, get<0>(rnd));
+                    }
                 }
+
             }
-            unsigned total = imprecise + unreasonable + inf + nan;
+            unsigned total = inconsistent + incorrect + inf + nan;
             if (total > 0) {
-                stat.emplace_back(get<0>(func), get<0>(rnd), imprecise, unreasonable, inf, nan);
+                stat.emplace_back(get<0>(func), get<0>(rnd), inconsistent, incorrect, inf, nan);
             }
         }
     }
